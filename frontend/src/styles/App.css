@@ -1,0 +1,27 @@
+/* Estilos gerais */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-content {
+  padding-top: 60px; /* Espaço suficiente para o Navbar fixo */
+  padding-bottom: 60px; /* Espaço para o rodapé, se necessário */
+}
+
+/* Responsividade para dispositivos móveis */
+@media (max-width: 767px) {
+  .main-content {
+    padding-top: 70px; /* Aumenta o padding-top para mobile */
+    padding-bottom: 70px; /* Aumenta o padding-bottom para mobile */
+  }
+}
+
+/* Ajustes adicionais */
+@media (max-width: 576px) {
+  .main-content {
+    padding-top: 80px; /* Compensa ainda mais o espaço no modo mobile */
+    padding-bottom: 80px;
+  }
+}

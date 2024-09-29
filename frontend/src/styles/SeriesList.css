@@ -1,0 +1,48 @@
+/* src/styles/SeriesList.css */
+
+.series-list {
+  padding: 16px;
+  background-color: #1e1e2f; /* Cor de fundo escura */
+}
+
+.series-list-title {
+  font-size: 2rem;
+  color: white;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.series-list-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center; /* Centraliza os cartões */
+}
+
+.series-card-link {
+  text-decoration: none; /* Remove o sublinhado dos links */
+}
+
+.series-card {
+  background-color: #2b2b3c; /* Cor de fundo dos cartões */
+  border-radius: 8px;
+  overflow: hidden;
+  width: 200px; /* Largura fixa para os cartões */
+  transition: transform 0.3s; /* Transição suave para o efeito de hover */
+}
+
+.series-card:hover {
+  transform: scale(1.05); /* Aumenta o tamanho do cartão ao passar o mouse */
+}
+
+.series-poster {
+  width: 100%;
+  height: auto;
+}
+
+.series-title {
+  padding: 8px;
+  font-size: 1.2rem;
+  color: white; /* Cor do texto do título da série */
+  text-align: center;
+}

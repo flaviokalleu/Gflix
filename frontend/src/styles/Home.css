@@ -1,0 +1,19 @@
+/* src/styles/Home.css */
+.home {
+  background-color: #141414;
+  color: white;
+}
+
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .movie-rows {
+    margin-top: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .movie-rows {
+    margin-top: 5px;
+  }
+}
