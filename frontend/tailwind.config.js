@@ -91,9 +91,7 @@ module.exports = {
     },
   },
   plugins: [
-    require('@tailwindcss/forms'), // Plugin para estilização de formulários
-    require('@tailwindcss/typography'), // Plugin para estilização de tipografia
-    require('@tailwindcss/aspect-ratio'), // Plugin para manter proporções de elementos
-    require('@tailwindcss/line-clamp'), // Plugin para limitar linhas de texto
+    
+   
   ],
 }

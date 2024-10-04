@@ -18,8 +18,9 @@ module.exports = (sequelize, DataTypes) => {
 
   User.associate = function(models) {
     User.belongsToMany(models.Role, {
-      through: 'UserRole',
-      foreignKey: 'user_id'
+      through: 'UserRole', // Tabela de junção
+      foreignKey: 'user_id',
+      as: 'Roles' // Alias definido para as roles
     });
   };
 

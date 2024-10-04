@@ -5,7 +5,9 @@ const userRoutes = require('./routes/userRoutes');
 const movieRoutes = require('./routes/movieRoutes');
 const importRoutes = require('./routes/importRoutes'); // Importa as rotas de importação
 const seriesRoutes = require('./routes/seriesRoutes');
-const seriesStatusRouter = require('./routes/seriesStatus'); // Ajuste o caminho conforme necessário
+
+const adminRoutes = require("./routes/adminRoutes"); 
+const protectedRoutes = require('./routes/protectedRoutes'); // Ajuste o caminho conforme necessário
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -13,11 +15,13 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+app.use("/api/admin", adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/series', seriesRoutes);
-app.use('/api/series', seriesStatusRouter);
+
 app.use('/api/movies', movieRoutes);
 app.use('/import', importRoutes); // Configura as rotas de importação
+app.use('/api', protectedRoutes); // Isso significa que sua rota protegida estará disponível em /api/protected
 
 (async () => {
   try {

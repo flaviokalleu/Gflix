@@ -1,47 +1,39 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom"; // Importar useNavigate
 
-const Login = () => {
-  const [credentials, setCredentials] = useState({
+const Register = () => {
+  const [user, setUser] = useState({
+    username: "", // Alterado de "name" para "username"
     email: "",
     password: "",
+    confirmPassword: "",
   });
-
-  const navigate = useNavigate(); // Inicializar useNavigate
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setCredentials({
-      ...credentials,
+    setUser({
+      ...user,
       [name]: value,
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (user.password !== user.confirmPassword) {
+      alert("As senhas não correspondem.");
+      return;
+    }
+
     try {
       const response = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/api/users/login`,
-        credentials
+        `${process.env.REACT_APP_BACKEND_URL}/api/users/register`,
+        user
       );
-
-      // Armazenar o token no localStorage
-      localStorage.setItem("token", response.data.token);
-
-      // Verificar o papel do usuário na resposta
-      const role = response.data.role; // Certifique-se de que o papel do usuário está na resposta
-
-      // Redirecionar para o dashboard correspondente
-      if (role === "admin") {
-        navigate("/admin/dashboard"); // Redirecionar para o dashboard do administrador
-      } else {
-        navigate("/dashboarduser"); // Redirecionar para o dashboard do usuário
-      }
-
-      alert("Login successful");
+      alert("Usuário registrado com sucesso");
     } catch (error) {
-      alert("Login failed");
+      const errorMessage =
+        error.response?.data?.error || "Erro ao registrar o usuário";
+      alert(errorMessage);
       console.error(error);
     }
   };
@@ -57,14 +49,25 @@ const Login = () => {
       }}
     >
       <div className="bg-opacity-80 bg-gray-900 p-8 rounded-lg max-w-md w-full space-y-6">
-        <h2 className="text-white text-3xl font-bold text-center">Login</h2>
+        <h2 className="text-white text-3xl font-bold text-center">Registrar</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <input
+              type="text"
+              name="username" // Alterado para "username"
+              placeholder="Nome de usuário"
+              value={user.username}
+              onChange={handleChange}
+              className="w-full p-3 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+              required
+            />
+          </div>
           <div>
             <input
               type="email"
               name="email"
               placeholder="Email"
-              value={credentials.email}
+              value={user.email}
               onChange={handleChange}
               className="w-full p-3 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
               required
@@ -74,8 +77,19 @@ const Login = () => {
             <input
               type="password"
               name="password"
-              placeholder="Password"
-              value={credentials.password}
+              placeholder="Senha"
+              value={user.password}
+              onChange={handleChange}
+              className="w-full p-3 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+              required
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              name="confirmPassword"
+              placeholder="Confirmar Senha"
+              value={user.confirmPassword}
               onChange={handleChange}
               className="w-full p-3 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
               required
@@ -85,13 +99,13 @@ const Login = () => {
             type="submit"
             className="w-full p-3 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600"
           >
-            Login
+            Registrar
           </button>
         </form>
         <p className="text-gray-500 text-center">
-          Novo por aqui?{" "}
-          <a href="/register" className="text-red-600">
-            Assine agora.
+          Já tem uma conta?{" "}
+          <a href="/login" className="text-red-600">
+            Faça login.
           </a>
         </p>
       </div>
@@ -99,4 +113,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Register;
