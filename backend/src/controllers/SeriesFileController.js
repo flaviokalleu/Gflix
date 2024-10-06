@@ -10,18 +10,54 @@ const {
   SeriesProductionCompanies,
 } = require('../models');
 
-// Variáveis para armazenar o estado do processamento
-let totalFiles = 0; // Total de arquivos a serem processados
-let processedFiles = 0; // Arquivos já processados
+// Variáveis para armazenar o estado do processamento e cache
+let totalFiles = 0;
+let processedFiles = 0;
+const tmdbCache = {};
 
-// Função para buscar arquivos na nova API
-const fetchFilesFromVidHideAPI = async () => {
+// Função para buscar os arquivos da nova API até não haver mais páginas
+const fetchFilesFromAPI = async () => {
+  const allFiles = [];
+  let page = 1;
+  let hasMoreFiles = true;
+
+  while (hasMoreFiles) {
+    try {
+      const url = `https://vidhideapi.com/api/file/list?key=32994a6f8bq2e30fkz632&page=${page}`;
+      const response = await axios.get(url);
+      
+      // Adicionar os arquivos da página atual ao array total
+      const files = response.data.result.files;
+      if (files && files.length > 0) {
+        allFiles.push(...files);
+        page++; // Avança para a próxima página
+      } else {
+        hasMoreFiles = false; // Não há mais arquivos, então para o loop
+      }
+    } catch (error) {
+      console.error('Error fetching files from API:', error.message);
+      hasMoreFiles = false; // Para o loop em caso de erro
+    }
+  }
+
+  return allFiles;
+};
+
+// Função para buscar dados da TMDB com cache
+const fetchTmdbData = async (tmdb_id) => {
+  if (tmdbCache[tmdb_id]) {
+    console.log(`Fetching from cache for TMDB ID ${tmdb_id}`);
+    return tmdbCache[tmdb_id];
+  }
+
   try {
-    const url = `https://vidhideapi.com/api/file/list?key=32994a6f8bq2e30fkz632`;
-    const response = await axios.get(url);
-    return response.data.result.files;
+    const tmdbResponse = await axios.get(
+      `https://api.themoviedb.org/3/tv/${tmdb_id}?api_key=${process.env.TMDB_API_KEY}&language=pt-BR`
+    );
+    tmdbCache[tmdb_id] = tmdbResponse.data; // Cache the result
+    return tmdbResponse.data;
   } catch (error) {
-    console.error('Error fetching files from VidHide API:', error.message);
+    console.error(`Error fetching TMDB data for ID ${tmdb_id}:`, error.message);
     throw error;
   }
 };
@@ -31,7 +67,7 @@ const SeriesFileController = {
   async fetchAndSaveSeriesFiles(req, res) {
     try {
       console.log('Fetching files from VidHide API...');
-      const files = await fetchFilesFromVidHideAPI();
+      const files = await fetchFilesFromAPI();
       console.log('Files fetched:', files);
 
       // Resetar contadores
@@ -39,70 +75,47 @@ const SeriesFileController = {
       processedFiles = 0;
 
       for (const file of files) {
-        const { title, file_code } = file; // Usar file_code
+        const { title, file_code } = file;
 
-        // Ajustar expressão regular para extrair nome da série, temporada e episódio
-        const episodeMatch = title.match(/(.+?)S(\d{2})E(\d{2})/);
-        const seriesName = episodeMatch ? episodeMatch[1].trim() : null;
-        const season_number = episodeMatch ? parseInt(episodeMatch[2], 10) : null;
-        const episode_number = episodeMatch ? parseInt(episodeMatch[3], 10) : null;
+        // Extrair tmdb_id do título
+        const tmdbIdMatch = title.match(/\s-\s\((\d+)\)\s-\s\(S(\d+)E(\d+)\)/);
+        const tmdb_id = tmdbIdMatch ? tmdbIdMatch[1] : null;
+        const season_number = tmdbIdMatch ? parseInt(tmdbIdMatch[2], 10) : null;
+        const episode_number = tmdbIdMatch ? parseInt(tmdbIdMatch[3], 10) : null;
 
-        if (!seriesName || !season_number || !episode_number) {
-          console.warn(`Could not extract series name, season or episode from title: ${title}. Skipping...`);
+        if (!tmdb_id || !season_number || !episode_number) {
+          console.warn(`Could not extract tmdb_id, season, or episode from title: ${title}. Skipping...`);
           continue;
         }
 
-        console.log(`Extracted series name: ${seriesName}, season: ${season_number}, episode: ${episode_number}`);
-
-        // Buscar tmdb_id pela API TMDB usando o nome da série
-        let tmdb_id = null;
+        console.log(`Processing file for series: ${title} (tmdb_id: ${tmdb_id}, S${season_number}E${episode_number})`);
 
         try {
-          const searchResponse = await axios.get(
-            `https://api.themoviedb.org/3/search/tv?api_key=${process.env.TMDB_API_KEY}&query=${encodeURIComponent(seriesName)}&language=pt-BR`
-          );
-          const seriesData = searchResponse.data.results[0]; // Pega o primeiro resultado
+          // Buscar detalhes da série com cache
+          const seriesData = await fetchTmdbData(tmdb_id);
+          console.log(`Fetched data for TMDB ID ${tmdb_id}:`, seriesData);
 
-          if (seriesData) {
-            tmdb_id = seriesData.id;
-            console.log(`Found TMDB ID ${tmdb_id} for series: ${seriesName}`);
-          } else {
-            console.warn(`No TMDB ID found for series: ${seriesName}. Skipping...`);
-            continue;
-          }
-        } catch (error) {
-          console.error(`Error fetching TMDB ID for series ${seriesName}:`, error.message);
-          continue;
-        }
-
-        // Upsert da série no banco de dados
-        let series;
-        try {
-          const tmdbResponse = await axios.get(
-            `https://api.themoviedb.org/3/tv/${tmdb_id}?api_key=${process.env.TMDB_API_KEY}&language=pt-BR`
-          );
-          series = tmdbResponse.data; // Armazena os dados da série
-
-          await Series.upsert({
-            tmdb_id: series.id,
-            name: series.name,
-            overview: series.overview,
-            backdrop_path: series.backdrop_path,
-            first_air_date: series.first_air_date,
-            last_air_date: series.last_air_date,
-            number_of_episodes: series.number_of_episodes,
-            number_of_seasons: series.number_of_seasons,
-            original_language: series.original_language,
-            status: series.status,
-            popularity: series.popularity,
-            vote_average: series.vote_average,
-            vote_count: series.vote_count,
-            homepage: series.homepage,
-            poster_path: series.poster_path,
+          // Upsert da série
+          const [series] = await Series.upsert({
+            tmdb_id: seriesData.id,
+            name: seriesData.name,
+            overview: seriesData.overview,
+            backdrop_path: seriesData.backdrop_path,
+            first_air_date: seriesData.first_air_date,
+            last_air_date: seriesData.last_air_date,
+            number_of_episodes: seriesData.number_of_episodes,
+            number_of_seasons: seriesData.number_of_seasons,
+            original_language: seriesData.original_language,
+            status: seriesData.status,
+            popularity: seriesData.popularity,
+            vote_average: seriesData.vote_average,
+            vote_count: seriesData.vote_count,
+            homepage: seriesData.homepage,
+            poster_path: seriesData.poster_path,
           });
 
           // Upsert de gêneros
-          const genres = series.genres || [];
+          const genres = seriesData.genres || [];
           for (const genre of genres) {
             await Genre.upsert({
               id: genre.id,
@@ -112,7 +125,7 @@ const SeriesFileController = {
           }
 
           // Upsert de empresas de produção
-          const productionCompanies = series.production_companies || [];
+          const productionCompanies = seriesData.production_companies || [];
           for (const production of productionCompanies) {
             const [productionCompany] = await ProductionCompany.upsert({
               tmdb_id: production.id,
@@ -122,26 +135,65 @@ const SeriesFileController = {
             });
 
             await SeriesProductionCompanies.upsert({
-              series_tmdb_id: series.id,
+              series_tmdb_id: seriesData.id,
               production_company_id: productionCompany.tmdb_id,
             });
           }
 
-          // Verificar se a temporada existe
+          // Buscar e upsert dados do elenco
+          const castResponse = await axios.get(
+            `https://api.themoviedb.org/3/tv/${tmdb_id}/credits?api_key=${process.env.TMDB_API_KEY}&language=pt-BR`
+          );
+          const castData = castResponse.data.cast || [];
+
+          if (castData.length > 0) {
+            for (const actor of castData) {
+              try {
+                // Upsert ator
+                const [actorEntry] = await Cast.upsert({
+                  tmdb_id: actor.id,
+                  tmdb_cast_id: actor.id,
+                  name: actor.name,
+                  character_name: actor.character,
+                  profile_path: actor.profile_path,
+                  gender: actor.gender,
+                });
+
+                if (actorEntry) {
+                  const castId = actorEntry.id; // ID do ator
+
+                  // Upsert a relação em SeriesCast
+                  await SeriesCast.upsert({
+                    series_tmdb_id: seriesData.id,
+                    cast_id: castId,
+                    character_name: actor.character,
+                    profile_path: actor.profile_path,
+                  });
+                } else {
+                  console.error(`Failed to insert/update actor: ${actor.name}`);
+                }
+
+              } catch (error) {
+                console.error(`Error processing actor ${actor.name}:`, error.message);
+              }
+            }
+          } else {
+            console.log('No cast data found for this series.');
+          }
+
+          // Criar ou buscar a temporada
           let season = await Season.findOne({
-            where: { series_tmdb_id: series.id, season_number },
+            where: { series_tmdb_id: seriesData.id, season_number },
           });
 
           if (!season) {
-            // Buscar detalhes da temporada se não encontrado
             const seasonResponse = await axios.get(
               `https://api.themoviedb.org/3/tv/${tmdb_id}/season/${season_number}?api_key=${process.env.TMDB_API_KEY}&language=pt-BR`
             );
             const seasonData = seasonResponse.data;
 
-            // Criar a temporada no banco de dados
             season = await Season.create({
-              series_tmdb_id: series.id,
+              series_tmdb_id: seriesData.id,
               season_number: seasonData.season_number,
               air_date: seasonData.air_date,
               episode_count: seasonData.episodes.length,
@@ -151,35 +203,30 @@ const SeriesFileController = {
             });
           }
 
-          // Verificar se o episódio já existe
-          const existingEpisode = await Episode.findOne({
-            where: { season_id: season.id, episode_number },
-          });
+          // Criar ou buscar o episódio
+          const episodeResponse = await axios.get(
+            `https://api.themoviedb.org/3/tv/${tmdb_id}/season/${season_number}/episode/${episode_number}?api_key=${process.env.TMDB_API_KEY}&language=pt-BR`
+          );
+          const episodeData = episodeResponse.data;
 
-          if (existingEpisode) {
-            console.log(`Episode ${existingEpisode.name} already exists. Skipping...`);
-            continue; // Pular se o episódio já existir
-          }
-
-          // Criar o link do vídeo
-          const videoLink = `https://vidhideplus.com/file/${file_code}`;
-
-          // Criar o episódio no banco de dados
-          const episode = await Episode.create({
-            name: title,
-            overview: '', // Você pode buscar uma sinopse se necessário
+          await Episode.upsert({
+            name: episodeData.name,
+            overview: episodeData.overview,
             season_id: season.id,
             episode_number,
-            link: videoLink,
+            vote_average: episodeData.vote_average,
+            vote_count: episodeData.vote_count,
+            air_date: episodeData.air_date,
+            still_path: episodeData.still_path,
+            link: `https://vidhideplus.com/embed/${file_code}`, // Usar o link do vídeo
           });
-
-          console.log(`Saved episode: ${episode.name}`);
 
           // Incrementar o número de arquivos processados
           processedFiles++;
           console.log(`Processed ${processedFiles} of ${totalFiles} files.`);
+
         } catch (error) {
-          console.error(`Error processing series ${seriesName}:`, error.message);
+          console.error(`Error processing file for tmdb_id ${tmdb_id}:`, error.message);
         }
       }
 
@@ -191,8 +238,6 @@ const SeriesFileController = {
       res.status(500).json({ message: 'Error fetching and saving series files.' });
     }
   },
-
-  // Rota para verificar o status do processamento
 };
 
 module.exports = SeriesFileController;
